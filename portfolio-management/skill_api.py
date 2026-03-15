@@ -369,7 +369,8 @@ class PortfolioSkill:
             # 只有在包含价格时才计算权重和排序
             if include_price:
                 for item in result_holdings:
-                    item["weight"] = item["market_value"] / total_cny if total_cny > 0 else 0
+                    mv = item.get("market_value") or 0
+                    item["weight"] = mv / total_cny if total_cny > 0 else 0
                 result_holdings.sort(key=lambda x: x.get("market_value") or 0, reverse=True)
 
             result = {
