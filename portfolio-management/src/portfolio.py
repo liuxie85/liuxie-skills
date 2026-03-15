@@ -574,6 +574,14 @@ class PortfolioManager:
 
         nav = total_value / shares if shares > 0 else 1.0
 
+        # -- 当前年份的 yearly_data['end'] 应使用今日实时净值，而非历史最后一条 --
+        current_year_str = str(today.year)
+        if current_year_str in yearly_data:
+            yearly_data[current_year_str]['end'] = NAVHistory(
+                date=today, account=account, total_value=total_value,
+                nav=nav, shares=shares,
+            )
+
         # -- 月初至今涨幅（基准：上月末净值） --
         if prev_month_end_nav and prev_month_end_nav.nav and prev_month_end_nav.nav > 0:
             month_nav_change = (nav - prev_month_end_nav.nav) / prev_month_end_nav.nav
