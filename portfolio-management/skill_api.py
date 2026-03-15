@@ -1079,7 +1079,7 @@ def init_db(account: str = DEFAULT_ACCOUNT, initial_cash: float = 0) -> Dict[str
         storage = FeishuStorage()
 
         # 检查飞书配置
-        if not storage.client.app_token:
+        if not storage.client.default_app_token:
             raise ValueError("未配置 FEISHU_APP_TOKEN，无法连接飞书多维表")
 
         # 创建初始现金持仓（如果需要）
@@ -1258,20 +1258,21 @@ def clean_data(table: str = None, account: str = None, dry_run: bool = True,
 
         tables_to_clean = ['holdings', 'transactions', 'cash_flow', 'nav_history'] if table == 'all' else [table]
 
+        _pf = FeishuStorage._parse_float
+
         for tbl in tables_to_clean:
             if tbl == 'holdings':
                 # 获取所有记录（包括 quantity=0 的）
-                records = storage.client.list_records('holdings')
+                records = storage.list_raw_records('holdings')
                 for record in records:
                     fields = record.get('fields', {})
                     r_id = record.get('record_id')
-                    asset_id = fields.get('asset_id', '')
-                    quantity = fields.get('quantity', 0)
+                    asset_id = str(fields.get('asset_id', '') or '').strip()
+                    quantity = _pf(fields.get('quantity'))
 
                     should_delete = False
                     if empty_only:
-                        # 空记录：asset_id 为空 或 quantity 为 0 或空
-                        if not asset_id or asset_id.strip() == '' or not quantity or quantity == 0 or quantity == '0':
+                        if not asset_id or not quantity:
                             should_delete = True
                     else:
                         if code and asset_id == code.upper():
@@ -1290,21 +1291,18 @@ def clean_data(table: str = None, account: str = None, dry_run: bool = True,
                                 results[tbl] += 1
 
             elif tbl == 'transactions':
-                records = storage.client.list_records('transactions')
+                records = storage.list_raw_records('transactions')
                 for record in records:
                     fields = record.get('fields', {})
                     r_id = record.get('record_id')
-                    asset_id = fields.get('asset_id', '')
+                    asset_id = str(fields.get('asset_id', '') or '').strip()
                     tx_date = fields.get('tx_date', '')
-                    quantity = fields.get('quantity', 0)
-                    price = fields.get('price', 0)
+                    quantity = _pf(fields.get('quantity'))
+                    price = _pf(fields.get('price'))
 
                     should_delete = False
                     if empty_only:
-                        # 空记录：asset_id 为空 或 quantity/price 为 0
-                        if (not asset_id or asset_id.strip() == '' or
-                            not quantity or quantity == 0 or quantity == '0' or
-                            not price or price == 0 or price == '0'):
+                        if not asset_id or not quantity or not price:
                             should_delete = True
                     else:
                         if code and asset_id == code.upper():
@@ -1327,17 +1325,16 @@ def clean_data(table: str = None, account: str = None, dry_run: bool = True,
                                 results[tbl] += 1
 
             elif tbl == 'cash_flow':
-                records = storage.client.list_records('cash_flow')
+                records = storage.list_raw_records('cash_flow')
                 for record in records:
                     fields = record.get('fields', {})
                     r_id = record.get('record_id')
                     flow_date = fields.get('flow_date', '')
-                    amount = fields.get('amount', 0)
+                    amount = _pf(fields.get('amount'))
 
                     should_delete = False
                     if empty_only:
-                        # 空记录：amount 为 0 或空
-                        if not amount or amount == 0 or amount == '0' or amount == '':
+                        if not amount:
                             should_delete = True
                     else:
                         if date_before_ts and flow_date:
@@ -1358,19 +1355,17 @@ def clean_data(table: str = None, account: str = None, dry_run: bool = True,
                                 results[tbl] += 1
 
             elif tbl == 'nav_history':
-                records = storage.client.list_records('nav_history')
+                records = storage.list_raw_records('nav_history')
                 for record in records:
                     fields = record.get('fields', {})
                     r_id = record.get('record_id')
                     nav_date = fields.get('date', '')
-                    total_value = fields.get('total_value', 0)
-                    nav = fields.get('nav', 0)
+                    total_value = _pf(fields.get('total_value'))
+                    nav = _pf(fields.get('nav'))
 
                     should_delete = False
                     if empty_only:
-                        # 空记录：total_value 或 nav 为 0
-                        if (not total_value or total_value == 0 or total_value == '0' or
-                            not nav or nav == 0 or nav == '0'):
+                        if not total_value or not nav:
                             should_delete = True
                     else:
                         if date_before_ts and nav_date:

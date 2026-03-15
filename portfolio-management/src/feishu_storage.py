@@ -44,6 +44,12 @@ class FeishuStorage:
         cache_key = self._get_holding_cache_key(asset_id, account, market)
         self._holding_id_cache.pop(cache_key, None)
 
+    # ========== 原始记录查询 ==========
+
+    def list_raw_records(self, table: str, filter_str: str = None) -> List[Dict]:
+        """查询原始记录（不做字段转换），用于数据清理等场景"""
+        return self.client.list_records(table, filter_str=filter_str)
+
     # ========== 字段转换工具 ==========
 
     def _to_feishu_fields(self, data: Dict, table: str) -> Dict[str, Any]:
@@ -452,7 +458,7 @@ class FeishuStorage:
 
         holding = self.get_holding(asset_id, account, market)
         if not holding or not holding.record_id:
-            return
+            raise ValueError(f"持仓不存在: {asset_id}@{account}")
 
         new_quantity = holding.quantity + quantity_change
         update_fields = {
@@ -465,7 +471,11 @@ class FeishuStorage:
         """如果持仓为0则删除"""
         holding = self.get_holding(asset_id, account, market)
         if holding and holding.record_id and holding.quantity == 0:
-            self.client.delete_record('holdings', holding.record_id)
+            try:
+                self.client.delete_record('holdings', holding.record_id)
+                self._invalidate_holding_cache(asset_id, account, market)
+            except Exception as e:
+                print(f"[警告] 删除零持仓失败({asset_id}): {e}")
 
     def delete_holding_by_record_id(self, record_id: str) -> bool:
         """通过记录ID删除持仓"""
@@ -709,6 +719,7 @@ class FeishuStorage:
 
         return Transaction(
             record_id=data.get('record_id'),
+            dedup_key=data.get('dedup_key'),
             request_id=data.get('request_id'),
             tx_date=tx_date,
             tx_type=TransactionType(data.get('tx_type')) if data.get('tx_type') else TransactionType.BUY,
@@ -805,9 +816,11 @@ class FeishuStorage:
         total = 0.0
         for record in records:
             fields = record['fields']
-            cny_amount = fields.get('cny_amount', fields.get('amount', 0))
+            cny_amount = self._parse_float(
+                fields.get('cny_amount') or fields.get('amount')
+            )
             if cny_amount:
-                total += float(cny_amount)
+                total += cny_amount
 
         return total
 
@@ -838,6 +851,7 @@ class FeishuStorage:
 
         return CashFlow(
             record_id=data.get('record_id'),
+            dedup_key=data.get('dedup_key'),
             flow_date=flow_date,
             account=data.get('account', ''),
             amount=float(data.get('amount', 0)),
@@ -859,12 +873,15 @@ class FeishuStorage:
         fields = self._nav_to_dict(nav)
         feishu_fields = self._to_feishu_fields(fields, 'nav_history')
 
-        if existing and existing.record_id:
-            self.client.update_record('nav_history', existing.record_id, feishu_fields)
-            nav.record_id = existing.record_id
-        else:
-            result = self.client.create_record('nav_history', feishu_fields)
-            nav.record_id = result['record_id']
+        try:
+            if existing and existing.record_id:
+                self.client.update_record('nav_history', existing.record_id, feishu_fields)
+                nav.record_id = existing.record_id
+            else:
+                result = self.client.create_record('nav_history', feishu_fields)
+                nav.record_id = result['record_id']
+        except Exception as e:
+            raise RuntimeError(f"保存净值记录失败({nav.account}/{nav.date}): {e}") from e
 
     def get_nav_history(self, account: str, days: int = 365) -> List[NAVHistory]:
         """获取净值历史"""
@@ -1048,7 +1065,7 @@ class FeishuStorage:
             asset_type=AssetType(data.get('asset_type')) if data.get('asset_type') else AssetType.OTHER,
             price=float(data.get('price', 0)),
             currency=data.get('currency', 'CNY'),
-            cny_price=float(data.get('cny_price')) if data.get('cny_price') else None,
+            cny_price=float(data.get('cny_price')) if data.get('cny_price') else 0.0,
             change=float(data.get('change')) if data.get('change') else None,
             change_pct=float(data.get('change_pct')) if data.get('change_pct') else None,
             exchange_rate=float(data.get('exchange_rate')) if data.get('exchange_rate') else None,
