@@ -535,7 +535,8 @@ class PortfolioManager:
             daily_cash_flow=daily_cash_flow, monthly_cash_flow=monthly_cash_flow,
             yearly_cash_flow=yearly_cash_flow,
             yearly_data=yearly_data, cumulative_cash_flow=cumulative_cash_flow,
-            start_year=start_year, **calc,
+            start_year=start_year, gap_cash_flow=gap_cash_flow,
+            **calc,
         )
         self.storage.save_nav(nav_record)
 
@@ -658,6 +659,7 @@ class PortfolioManager:
         cumulative_nav_change, daily_appreciation,
         month_appreciation, year_appreciation,
         cumulative_appreciation, initial_value, first_year_data,
+        gap_cash_flow=None,
     ) -> NAVHistory:
         """构建 NAVHistory 对象（含 details 字典）"""
         # details 保留各年份明细和累计数据
@@ -688,7 +690,7 @@ class PortfolioManager:
             cash_weight=round(cash_ratio, 6),
             shares=round(shares, 2),
             nav=round(nav, 6),
-            cash_flow=round(daily_cash_flow, 2),
+            cash_flow=round(gap_cash_flow if gap_cash_flow is not None else daily_cash_flow, 2),
             share_change=round(shares_change, 2),
             mtd_nav_change=round(month_nav_change, 6),
             ytd_nav_change=round(year_nav_change, 6),
