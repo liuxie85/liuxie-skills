@@ -866,17 +866,35 @@ class FeishuStorage:
     # ========== nav_history 净值历史操作 ==========
 
     def save_nav(self, nav: NAVHistory):
-        """保存净值记录"""
-        # 检查是否已存在
-        existing = self.get_nav_on_date(nav.account, nav.date)
+        """保存净值记录（自动清理同日重复记录）"""
+        filter_str = f'CurrentValue.[account] = "{self._escape_filter_value(nav.account)}"'
+        records = self.client.list_records('nav_history', filter_str=filter_str)
+
+        # 找出同日期的所有记录
+        matched_ids = []
+        for record in records:
+            fields = self._from_feishu_fields(record['fields'], 'nav_history')
+            nav_date = fields.get('date')
+            if isinstance(nav_date, (int, float)):
+                nav_date = datetime.fromtimestamp(nav_date / 1000).date()
+            elif isinstance(nav_date, str):
+                nav_date = datetime.strptime(nav_date, '%Y-%m-%d').date()
+            if nav_date == nav.date:
+                matched_ids.append(record['record_id'])
 
         fields = self._nav_to_dict(nav)
         feishu_fields = self._to_feishu_fields(fields, 'nav_history')
 
         try:
-            if existing and existing.record_id:
-                self.client.update_record('nav_history', existing.record_id, feishu_fields)
-                nav.record_id = existing.record_id
+            if matched_ids:
+                # 更新第一条，删除其余重复
+                self.client.update_record('nav_history', matched_ids[0], feishu_fields)
+                nav.record_id = matched_ids[0]
+                for dup_id in matched_ids[1:]:
+                    try:
+                        self.client.delete_record('nav_history', dup_id)
+                    except Exception:
+                        pass  # 清理失败不阻塞主流程
             else:
                 result = self.client.create_record('nav_history', feishu_fields)
                 nav.record_id = result['record_id']
