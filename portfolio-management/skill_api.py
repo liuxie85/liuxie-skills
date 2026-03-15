@@ -31,6 +31,13 @@ from src import config
 DEFAULT_ACCOUNT = config.get_account()
 
 
+def fmt_qty(value) -> str:
+    """格式化数量：千分位 + 两位小数 (如 1,000.00)"""
+    if value is None:
+        return "0.00"
+    return f"{float(value):,.2f}"
+
+
 # ========== 核心 API 类 ==========
 
 class PortfolioSkill:
@@ -118,13 +125,13 @@ class PortfolioSkill:
                     "type": tx.tx_type.value,
                     "code": tx.asset_id,
                     "name": saved_name,
-                    "quantity": tx.quantity,
+                    "quantity": fmt_qty(tx.quantity),
                     "price": tx.price,
                     "amount": tx.quantity * tx.price,
                     "fee": tx.fee,
                     "total_cost": tx.quantity * tx.price + tx.fee
                 },
-                "message": f"买入记录已保存: {saved_name} {quantity}股 @ ¥{price}"
+                "message": f"买入记录已保存: {saved_name} {fmt_qty(quantity)}股 @ ¥{price}"
             }
         except Exception as e:
             return {"success": False, "error": str(e), "message": f"记录失败: {e}"}
@@ -183,12 +190,12 @@ class PortfolioSkill:
                     "date": tx.tx_date.isoformat(),
                     "code": tx.asset_id,
                     "name": tx.asset_name,
-                    "quantity": quantity,
+                    "quantity": fmt_qty(quantity),
                     "price": price,
                     "proceeds": quantity * price - fee,
                     "fee": fee
                 },
-                "message": f"卖出记录已保存: {tx.asset_name} {quantity}股 @ ¥{price}"
+                "message": f"卖出记录已保存: {tx.asset_name} {fmt_qty(quantity)}股 @ ¥{price}"
             }
         except Exception as e:
             return {"success": False, "error": str(e), "message": f"记录失败: {e}"}
@@ -352,7 +359,7 @@ class PortfolioSkill:
                     item = {
                         "code": h.asset_id,
                         "name": h.asset_name,
-                        "quantity": h.quantity,
+                        "quantity": fmt_qty(h.quantity),
                         "type": h.asset_type.value if h.asset_type else None,
                         "market": h.market,
                         "currency": h.currency

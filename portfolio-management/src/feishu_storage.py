@@ -84,24 +84,24 @@ class FeishuStorage:
                 'exchange_rate': False,
             },
             'nav_history': {
-                'total_value': True,
-                'cash_value': True,
-                'stock_value': True,
-                'fund_value': True,
-                'cn_stock_value': True,
-                'us_stock_value': True,
-                'hk_stock_value': True,
+                'total_value': False,
+                'cash_value': False,
+                'stock_value': False,
+                'fund_value': False,
+                'cn_stock_value': False,
+                'us_stock_value': False,
+                'hk_stock_value': False,
                 'stock_weight': True,
                 'cash_weight': True,
-                'shares': True,
+                'shares': False,
                 'nav': True,
-                'cash_flow': True,
-                'share_change': True,
+                'cash_flow': False,
+                'share_change': False,
                 'mtd_nav_change': True,
-                'ytd_nav_change': True,
-                'pnl': True,
-                'mtd_pnl': True,
-                'ytd_pnl': True,
+                'ytd_nav_change': False,
+                'pnl': False,
+                'mtd_pnl': False,
+                'ytd_pnl': False,
             },
             'price_cache': {
                 'price': True,
@@ -849,14 +849,19 @@ class FeishuStorage:
         elif isinstance(flow_date, str):
             flow_date = datetime.strptime(flow_date, '%Y-%m-%d').date()
 
+        amount = float(data.get('amount', 0))
+        # cny_amount 缺失时回退到 amount（与 deposit/withdraw 创建逻辑一致）
+        raw_cny = data.get('cny_amount')
+        cny_amount = float(raw_cny) if raw_cny else amount
+
         return CashFlow(
             record_id=data.get('record_id'),
             dedup_key=data.get('dedup_key'),
             flow_date=flow_date,
             account=data.get('account', ''),
-            amount=float(data.get('amount', 0)),
+            amount=amount,
             currency=data.get('currency', 'CNY'),
-            cny_amount=float(data.get('cny_amount')) if data.get('cny_amount') else None,
+            cny_amount=cny_amount,
             exchange_rate=float(data.get('exchange_rate')) if data.get('exchange_rate') else None,
             flow_type=data.get('flow_type', 'deposit'),
             source=data.get('source'),
@@ -980,7 +985,7 @@ class FeishuStorage:
         return latest.shares if latest else 0.0
 
     def _nav_to_dict(self, nav: NAVHistory) -> Dict:
-        """NAVHistory 转字典"""
+        """NAVHistory 转字典（Optional 字段默认 0.0，确保写入飞书不留空）"""
         return {
             'date': nav.date,
             'account': nav.account,
@@ -991,18 +996,17 @@ class FeishuStorage:
             'cn_stock_value': nav.cn_stock_value,
             'us_stock_value': nav.us_stock_value,
             'hk_stock_value': nav.hk_stock_value,
-            'stock_weight': nav.stock_weight,
-            'cash_weight': nav.cash_weight,
-            'shares': nav.shares,
-            'nav': nav.nav,
-            'cash_flow': nav.cash_flow,
-            'share_change': nav.share_change,
-            'mtd_nav_change': nav.mtd_nav_change,
-            'ytd_nav_change': nav.ytd_nav_change,
-            'pnl': nav.pnl,
-            'mtd_pnl': nav.mtd_pnl,
-            'ytd_pnl': nav.ytd_pnl,
-            'details': nav.details,
+            'stock_weight': nav.stock_weight or 0.0,
+            'cash_weight': nav.cash_weight or 0.0,
+            'shares': nav.shares or 0.0,
+            'nav': nav.nav or 0.0,
+            'cash_flow': nav.cash_flow or 0.0,
+            'share_change': nav.share_change or 0.0,
+            'mtd_nav_change': nav.mtd_nav_change if nav.mtd_nav_change is not None else 0.0,
+            'ytd_nav_change': nav.ytd_nav_change if nav.ytd_nav_change is not None else 0.0,
+            'pnl': nav.pnl if nav.pnl is not None else 0.0,
+            'mtd_pnl': nav.mtd_pnl if nav.mtd_pnl is not None else 0.0,
+            'ytd_pnl': nav.ytd_pnl if nav.ytd_pnl is not None else 0.0,
         }
 
     def _dict_to_nav(self, data: Dict) -> NAVHistory:

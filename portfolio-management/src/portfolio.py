@@ -769,7 +769,7 @@ class PortfolioManager:
         """获取当日资金变动（从cash_flow表）"""
         # 使用通用的 get_cash_flows 方法
         flows = self.storage.get_cash_flows(account, flow_date, flow_date)
-        return sum(f.cny_amount for f in flows if f.cny_amount)
+        return sum(f.cny_amount or 0 for f in flows)
 
     def _get_yearly_cash_flow(self, account: str, year: str) -> float:
         """获取当年累计资金变动"""
@@ -777,7 +777,7 @@ class PortfolioManager:
         year_end = date(int(year), 12, 31)
 
         flows = self.storage.get_cash_flows(account, year_start, year_end)
-        return sum(f.cny_amount for f in flows if f.cny_amount)
+        return sum(f.cny_amount or 0 for f in flows)
 
     def _get_monthly_cash_flow(self, account: str, year: int, month: int) -> float:
         """获取当月累计资金变动"""
@@ -789,12 +789,12 @@ class PortfolioManager:
             from datetime import timedelta
             month_end = month_end - timedelta(days=1)
         flows = self.storage.get_cash_flows(account, month_start, month_end)
-        return sum(f.cny_amount for f in flows if f.cny_amount)
+        return sum(f.cny_amount or 0 for f in flows)
 
     def _get_period_cash_flow(self, account: str, start_date: date, end_date: date) -> float:
         """获取指定期间的累计资金变动"""
         flows = self.storage.get_cash_flows(account, start_date, end_date)
-        return sum(f.cny_amount for f in flows if f.cny_amount)
+        return sum(f.cny_amount or 0 for f in flows)
 
     def _get_prev_month_end_nav(self, account: str, year: int, month: int) -> Optional[NAVHistory]:
         """获取上月末净值记录"""
@@ -862,7 +862,7 @@ class PortfolioManager:
         year_start = date(int(from_year), 1, 1)
 
         flows = self.storage.get_cash_flows(account, year_start, to_date)
-        return sum(f.cny_amount for f in flows if f.cny_amount)
+        return sum(f.cny_amount or 0 for f in flows)
 
     # ========== 份额管理 ==========
 
